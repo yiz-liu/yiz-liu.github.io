@@ -1,0 +1,83 @@
+---
+import { Icon } from "astro-icon/components";
+import { profileConfig } from "../config";
+
+let introPage : string;
+
+if (profileConfig.indexPage) {
+    introPage = profileConfig.indexPage;
+} else {
+    introPage = import.meta.env.BASE_URL;
+}
+---
+
+<!-- footer -->
+<footer class="flex flex-col md:flex-row md:justify-between items-start md:items-center py-10 text-[var(--text-color-70)] max-w-[var(--header-width)] mx-auto w-full">
+    <div class="mb-1 md:mb-0">
+        © {profileConfig.startYear} - {new Date().getFullYear()} <a class="link-line" target="_self" href={introPage}>{profileConfig.name}</a>. 
+    </div>
+    <div class="right">
+        <p>
+        <a href="/rss.xml" target="_self" title="RSS" class="tooltip-wrapper"><Icon name="simple-icons:rss" class="inline-block" /></a>
+        </p>
+    </div>
+</footer>
+
+
+<style>
+    footer {
+        font-family:  "EB Garamond", cursive !important; 
+    }
+   .right a {
+        color: inherit;
+        /* transition: color 0.3s ease; */
+        text-decoration: none;
+        position: relative;
+        display: inline-block;
+    }
+    
+    .right a:hover {
+        color: var(--link-color);
+    }
+    
+    .tooltip-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .tooltip-wrapper:hover::after {
+        content: attr(title);
+        position: absolute;
+        bottom: 80%;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 4px 8px;
+        background-color: var(--text-color);
+        color:var(--bg-color);
+        font-size: 12px; 
+        font-weight: bold;
+        border-radius: 6px;
+        white-space: nowrap;
+        z-index: 1000;
+        opacity: 0;
+        animation: fadeInTooltip 0.3s forwards;
+        margin-bottom: 5px;
+        text-align: center;
+    }
+
+    /* 隐藏浏览器默认的title提示 */
+    .tooltip-wrapper {
+        text-decoration: none !important;
+    }
+
+    .tooltip-wrapper:hover {
+        outline: none !important;
+        border: none !important;
+    }
+
+    @keyframes fadeInTooltip {
+        to {
+            opacity: 1;
+        }
+    }
+</style>

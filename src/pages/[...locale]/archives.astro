@@ -1,0 +1,34 @@
+---
+import MainPageLayout from '@layouts/MainPageLayout.astro'
+import ArchivePanel from '@components/ArchivePanel.svelte'
+import FabMenu from '@components/control/FabMenu.astro'
+import { siteConfig } from '@/config'
+import { getBlogEntrySort } from '@utils/content-utils'
+import i18nit from '@i18n/translation'
+import { i18n } from "astro:config/client";
+
+
+
+const currentLang = Astro.currentLocale || i18n!.defaultLocale;
+const defaultLocale = i18n!.defaultLocale;
+const t = i18nit(currentLang);
+
+export async function getStaticPaths() {
+	return i18n?.locales.map(locale => ({ params: { locale: locale == i18n?.defaultLocale ? undefined : (locale as string) } }));
+}
+
+// 获取所有博客文章并按发布日期降序排序
+const allBlogPosts = await getBlogEntrySort(currentLang);
+
+const pageTitle = t("header.archive") + " - " + siteConfig.title;
+---
+
+<MainPageLayout title={pageTitle} lang={currentLang}>
+    <ArchivePanel
+        client:only="svelte"
+        sortedPosts={allBlogPosts}
+        currentLang={currentLang}
+        defaultLocale={i18n!.defaultLocale}
+    />
+    <FabMenu showBackBottom={true} />
+</MainPageLayout>

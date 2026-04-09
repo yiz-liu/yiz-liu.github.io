@@ -1,0 +1,310 @@
+---
+import type { SearchResult } from "@/global"
+import { baseUrl } from "@utils/url-utils";
+import { i18n } from "astro:config/client";
+import i18nit from "@i18n/translation";
+
+
+
+const currentLang = Astro.currentLocale || i18n!.defaultLocale;
+const t = i18nit(currentLang);
+
+const translations = {
+  placeholder: t("search.placeholder"),
+  error: t("search.error"),
+  noresult: t("search.noresult"),
+  loading: currentLang === 'zh-cn' ? '搜索索引加载中…' : 'Loading search index...'
+};
+
+const isDev = !import.meta.env.PROD;
+
+const fakeResult: SearchResult[] = [
+	{
+		url: baseUrl("/"),
+		meta: {
+			title: "This Is a Fake Search Result",
+		},
+		excerpt:
+			"Because the search cannot work in the <mark>dev</mark> environment.",
+	},
+	{
+		url: baseUrl("/"),
+		meta: {
+			title: "If You Want to Test the Search",
+		},
+		excerpt: "Try running <mark>pnpm build && pnpm preview</mark> instead.",
+  }
+]
+---
+<div id="search-modal" class="fixed inset-0 z-[100] opacity-0 pointer-events-none">
+  <div class="absolute inset-0 modal-backdrop opacity-0" aria-hidden="true"></div>
+
+  <div class="fixed inset-0 flex items-start justify-center p-4 pt-[25vh]">
+    <div class="search-modal-content bg-[var(--bg-color)] rounded-xl shadow-xl w-full max-w-2xl border border-[var(--button-border-color)] overflow-hidden scale-80 transition-all duration-300 opacity-0 flex flex-col max-h-[40vh]">
+      <div class="flex items-center p-4 border-b border-[var(--button-border-color)]">
+        <svg class="w-5 h-5 text-[var(--text-color-70)] mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <input 
+          type="text" 
+          id="search-input"
+          placeholder={t("search.placeholder")+"..."}
+          class="w-full bg-transparent border-0 focus:ring-0 focus:outline-none  text-[var(--text-color)]"
+          autofocus
+        />
+        <button id="close-search" class="ml-2 p-2 text-[var(--text-color-70)] rounded-lg hover:bg-[var(--button-hover-color)] active:bg-[var(--button-hover-color)]" aria-label="Close Search">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <div id="search-results" class="overflow-y-auto flex-grow">
+        <div class="p-8 text-center text-[var(--text-color-70)]">
+          <p>{t("search.placeholder")}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function initSearchModal() {
+  const searchButton = document.getElementById('search-button');
+  const searchModal = document.getElementById('search-modal');
+  const closeSearch = document.getElementById('close-search');
+  const searchInput = document.getElementById('search-input');
+  const modalBackdrop = searchModal?.firstElementChild;
+  const modalContent = searchModal?.querySelector('.search-modal-content');
+
+  if (!searchButton || !searchModal) return; // 防止重复绑定
+
+  const openModal = () => {
+    searchModal.classList.remove('opacity-0', 'pointer-events-none');
+    searchModal.offsetHeight;
+    requestAnimationFrame(() => {
+      modalBackdrop?.classList.remove('opacity-0');
+      modalBackdrop?.classList.add('show');
+      modalContent?.classList.remove('scale-80', 'opacity-0');
+      modalContent?.classList.add('scale-100');
+    });
+    setTimeout(() => searchInput?.focus(), 300);
+  };
+
+  const closeModal = () => {
+    requestAnimationFrame(() => {
+      modalBackdrop?.classList.add('opacity-0');
+      modalBackdrop?.classList.remove('show');
+      modalContent?.classList.add('scale-80', 'opacity-0');
+      modalContent?.classList.remove('scale-100');
+    });
+    setTimeout(() => {
+      searchModal.classList.add('opacity-0', 'pointer-events-none');
+    }, 300);
+  };
+
+  searchButton.addEventListener('click', openModal);
+  closeSearch?.addEventListener('click', closeModal);
+  searchModal.addEventListener('click', (e) => {
+    if (!modalContent?.contains(e.target)) closeModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !searchModal.classList.contains('opacity-0')) {
+      closeModal();
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initSearchModal);
+document.addEventListener('astro:after-swap', initSearchModal);
+</script>
+
+
+<style>
+  @keyframes backdropFadeIn {
+    0% {
+      opacity: 0;
+      backdrop-filter: blur(0px);
+    }
+    100% {
+      opacity: 1;
+      backdrop-filter: blur(2px);
+    }
+  }
+  
+  @keyframes backdropFadeOut {
+    0% {
+      opacity: 1;
+      backdrop-filter: blur(2px);
+    }
+    100% {
+      opacity: 0;
+      backdrop-filter: blur(0px);
+    }
+  }
+  
+  .modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(0px);
+    transition: opacity 0.3s ease-out;
+  }
+  
+  .modal-backdrop.show {
+    animation: backdropFadeIn 0.3s ease-out forwards;
+  }
+  
+  .modal-backdrop:not(.show) {
+    animation: backdropFadeOut 0.3s ease-out forwards;
+  }
+  
+  #search-input::-webkit-input-placeholder {
+    color: var(--text-color-70);
+  }
+  
+  #search-input::-moz-placeholder {
+    color: var(--text-color-70);
+  }
+</style>
+
+<script define:vars={{ fakeResult, translations, isDev }}>
+function initPagefindSearch() {
+  const searchInput = document.getElementById('search-input');
+  const searchResults = document.getElementById('search-results');
+  
+  if (!searchInput || !searchResults) return;
+
+  // 避免重复绑定
+  if (searchInput.dataset.bound === 'true') return;
+  searchInput.dataset.bound = 'true';
+
+  let searchTimeout;
+
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    clearTimeout(searchTimeout);
+    
+    searchTimeout = setTimeout(() => {
+      if (query.length > 0) {
+        waitForPagefindThenSearch(query);
+      } else {
+        // 清空或显示默认状态
+        searchResults.innerHTML = `
+          <div class="p-8 text-center text-[var(--text-color-70)]">
+            <p>${translations.placeholder}</p>
+          </div>
+        `;
+      }
+    }, 300);
+  });
+}
+
+async function performSearch(query) {
+  const searchResults = document.getElementById('search-results');
+
+  if (isDev) {
+    displayResults(fakeResult);
+  } else if (window.pagefind) {
+    await window.pagefind.destroy();
+    await window.pagefind.init();
+    // console.log('Pagefind is initialized');
+    try {
+      const searchResultsData = await window.pagefind.search(query);
+      const results = [];
+
+      for (const result of searchResultsData.results) {
+        const data = await result.data();
+        results.push({
+          url: data.url,
+          meta: { title: data.meta.title },
+          excerpt: data.excerpt
+        });
+      }
+
+      displayResults(results);
+    } catch (error) {
+      console.error('Search failed:', error);
+      searchResults.innerHTML = `
+        <div class="p-8 text-center text-red-500">
+          <p>${translations.error}</p>
+        </div>
+      `;
+    }
+  } else {
+    searchResults.innerHTML = `
+      <div class="p-8 text-center text-[var(--text-color-70)]">
+        <p>${translations.loading}</p>
+      </div>
+    `;
+  }
+}
+
+function waitForPagefindThenSearch(query, retries = 20) {
+  if (window.pagefind) {
+    performSearch(query);
+    return;
+  }
+
+  const searchResults = document.getElementById('search-results');
+  if (!searchResults) return;
+
+  if (retries <= 0) {
+    searchResults.innerHTML = `
+      <div class="p-8 text-center text-red-500">
+        <p>${translations.error}</p>
+      </div>
+    `;
+    return;
+  }
+
+  searchResults.innerHTML = `
+    <div class="p-8 text-center text-[var(--text-color-70)]">
+      <p>${translations.loading}</p>
+    </div>
+  `;
+
+  window.setTimeout(() => waitForPagefindThenSearch(query, retries - 1), 150);
+}
+
+function displayResults(results) {
+  const searchResults = document.getElementById('search-results');
+  if (!searchResults) return;
+
+  if (results.length === 0) {
+    searchResults.innerHTML = `
+      <div class="p-8 text-center text-[var(--text-color-70)]">
+        <p>${translations.noresult}</p>
+      </div>
+    `;
+    return;
+  }
+
+  searchResults.innerHTML = results.map(result => `
+    <div class="p-4 border-b border-[var(--button-border-color)] hover:bg-[var(--button-hover-color)]">
+      <a href="${result.url}" class="block no-underline">
+        <h3 class="text-lg font-semibold text-[var(--text-color)] mb-2">${result.meta.title}</h3>
+        <p class="text-[var(--text-color-70)] text-sm">${result.excerpt}</p>
+      </a>
+    </div>
+  `).join('');
+}
+
+// ========== 初始化逻辑 ==========
+document.addEventListener('pagefind-ready', () => {
+  // console.log('Pagefind is ready');
+});
+document.addEventListener('pagefindloaderror', () => {
+  console.log('Pagefind failed to load, search functionality will not work');
+});
+
+document.addEventListener('DOMContentLoaded', initPagefindSearch);
+document.addEventListener('astro:after-swap', initPagefindSearch);
+</script>
+
+
+<style is:global>
+mark {
+  background-color: #ffeb3b00;
+  color: var(--link-color);
+  padding: 0 2px;
+  font-weight: 600;
+}
+</style>

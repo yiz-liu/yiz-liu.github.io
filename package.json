@@ -1,0 +1,48 @@
+{
+  "name": "yiz-liu.github.io",
+  "type": "module",
+  "version": "26.4.7",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && pagefind --site dist",
+    "preview": "astro preview",
+    "astro": "astro",
+    "newpost": "node script/newpost.js"
+  },
+  "dependencies": {
+    "@astrojs/rss": "^4.0.18",
+    "@astrojs/svelte": "^8.0.4",
+    "@chinese-fonts/lxgwwenkaibright": "^2.0.0",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@iconify/svelte": "^5.2.1",
+    "@myriaddreamin/typst-ts-node-compiler": "0.7.0-rc2",
+    "@myriaddreamin/typst.ts": "0.7.0-rc2",
+    "@tailwindcss/vite": "^4.1.13",
+    "aos": "^2.3.4",
+    "astro": "^6.1.4",
+    "astro-icon": "^1.1.5",
+    "hastscript": "^9.0.1",
+    "katex": "^0.16.22",
+    "mdast-util-to-string": "^4.0.0",
+    "overlayscrollbars": "^2.12.0",
+    "pagefind": "^1.4.0",
+    "photoswipe": "^5.4.4",
+    "reading-time": "^1.5.0",
+    "rehype-components": "^0.3.0",
+    "rehype-katex": "^7.0.1",
+    "remark-directive": "^4.0.0",
+    "remark-math": "^6.0.0",
+    "sharp": "^0.34.3",
+    "svelte": "^5.46.0",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.3",
+    "unist-util-visit": "^5.0.0"
+  },
+  "devDependencies": {
+    "@iconify-json/fa6-brands": "^1.2.6",
+    "@iconify-json/fa6-solid": "^1.2.4",
+    "@iconify-json/material-symbols": "^1.2.35",
+    "@iconify-json/simple-icons": "^1.2.48",
+    "@iconify-json/vscode-icons": "^1.2.29"
+  }
+}

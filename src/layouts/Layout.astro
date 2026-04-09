@@ -1,0 +1,155 @@
+---
+import { siteConfig, profileConfig } from '@/config';
+import "@styles/global.css"
+import 'aos/dist/aos.css';
+import 'photoswipe/style.css'
+import { i18n } from "astro:config/client";
+import { ClientRouter } from "astro:transitions";
+
+interface Props {
+  title: string;
+  lang?: string;
+  description?: string;
+}
+const { title, lang, description } = Astro.props;
+
+const pageTitle = title;
+const pageLang = lang || i18n?.defaultLocale || "zh-cn";
+---
+
+<!DOCTYPE html>
+<html lang={pageLang} class="h-full">
+<head>
+    <script is:inline>
+        (function() {
+        const savedTheme = localStorage.getItem('theme');
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        let theme;
+        if ( savedTheme === 'system') {
+          theme = systemTheme;
+        } else {
+          theme = savedTheme || 'light';
+        }
+        localStorage.setItem('theme', savedTheme || theme);
+        document.documentElement.setAttribute('data-theme', theme);
+
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content={(description != null && description !== undefined && description !== "") ? description : profileConfig.description}>
+    <meta name="author" content={profileConfig.name}>
+    <link rel="alternate" type="application/rss+xml" title={siteConfig.title} href={new URL("rss.xml", Astro.site)} >
+    <link rel="icon" href={siteConfig.favicon} type="image/x-icon">
+    <link rel="stylesheet" href="https://fonts.font.im/css2?family=Noto+Serif+SC:wght@400;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.font.im/css2?family=EB+Garamond&display=swap">
+    <title>{pageTitle}</title>
+    <ClientRouter />
+</head>
+<body class="h-full bg-[var(--bg-color)]">
+    
+    <div id="loading-overlay" aria-hidden="true">
+      <div class="spinner"></div>
+    </div>
+
+    <slot />
+    
+    <script is:inline>
+        let loaderTimeout;
+
+        // 1. 开始准备跳转
+        document.addEventListener('astro:before-preparation', () => {
+            loaderTimeout = setTimeout(() => {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.style.display = 'flex';
+            }, 500); 
+        });
+
+        // 2. 页面内容交换完成（DOM 已更新）
+        document.addEventListener('astro:after-swap', () => {
+            clearTimeout(loaderTimeout);
+            
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.style.display = 'none';
+        });
+
+        // 3. 兜底方案：页面完全加载完成（包括资源）
+        document.addEventListener('astro:page-load', () => {
+            clearTimeout(loaderTimeout);
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.style.display = 'none';
+        });
+        </script>
+</body>
+</html>
+
+<style is:global>
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.7);
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  [data-theme="dark"] #loading-overlay {
+    background-color: rgba(0, 0, 0, 0.7);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--button-hover-color);
+    border-top: 4px solid var(--link-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+</style>
+
+<script>
+  import AOS from 'aos';
+
+  function initApp() {
+    // 1. 先处理 Markdown 的动态注入 (如果有)
+    const container = document.querySelector('.markdown-content');
+    if (container) {
+      const elements = container.querySelectorAll(':scope > *');
+      elements.forEach((el, i) => {
+        el.setAttribute('data-aos', 'fade-up');
+        el.setAttribute('data-aos-delay', (i % 5 * 50).toString());
+      });
+    }
+
+    // 2. 统一初始化
+    AOS.init({
+      duration: 800,
+      once: true,
+    });
+    
+    // 3. 强力刷新
+    AOS.refreshHard();
+  }
+
+  document.addEventListener('astro:page-load', initApp);
+  // document.addEventListener('astro:after-swap', initApp);
+
+</script>

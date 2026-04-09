@@ -1,0 +1,39 @@
+// @ts-check
+import { defineConfig } from 'astro/config';
+import tailwindcss from "@tailwindcss/vite";
+import icon from 'astro-icon';
+import { remarkReadingTime } from './src/plugins/remark-reading-time.mjs';
+
+import svelte from "@astrojs/svelte";
+export default defineConfig({
+  site: 'https://yiz-liu.github.io/', // Root URL of site
+  i18n: {
+    locales: ['zh-cn', 'en'],
+    defaultLocale: 'zh-cn',
+    routing: {
+      prefixDefaultLocale: false,
+      redirectToDefaultLocale: false
+    }
+  },
+  integrations: [icon({
+    include: {
+      "fa6-brands": ["*"],
+      "fa6-solid": ["*"],
+      "simple-icons": ["*"],
+      "vscode-icons": ["*"],
+      "material-symbols": ["*"]
+    }
+  }), svelte()],
+  markdown: {
+    shikiConfig: {
+      theme: 'one-dark-pro', // code theme
+      // theme: 'github-dark',
+      wrap: false
+    },
+    remarkPlugins: [remarkReadingTime],
+    rehypePlugins: []
+  },
+  vite: {
+    plugins: [tailwindcss()]
+  }
+});

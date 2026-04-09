@@ -1,0 +1,37 @@
+---
+import MainPageLayout from '@layouts/MainPageLayout.astro';
+import Cover from '@components/Cover.astro';
+import { getRelativeLocaleUrl } from '@utils/url-utils';
+
+import { siteConfig } from '@/config'
+
+import { i18n } from "astro:config/client";
+import i18nit from '@i18n/translation'
+
+const currentLang = Astro.currentLocale || i18n!.defaultLocale;
+const t = i18nit(currentLang);
+
+const pageTitle = "404 - " + siteConfig.title;
+const indexPage = getRelativeLocaleUrl(currentLang, "/");
+---
+<MainPageLayout title={pageTitle} lang={currentLang}>
+    <div class="mx-auto w-full max-w-[var(--page-width)] px-4 text-center">
+        <Cover title={t("page404.title")} subTitle={t("page404.subTitle")} />
+
+        <div class="mt-8 flex flex-col items-center">
+            <p class="text-[var(--text-color-70)]">{t("page404.notice")}</p>
+            <div class=" mt-2 flex gap-4">
+                <a href={indexPage} 
+                class="px-6 py-2 bg-[var(--link-color)] text-white rounded-lg hover:opacity-90 transition-all">
+                    {t("page404.backToHome")}
+                </a>
+                <a href="javascript:history.back()" 
+                class="px-6 py-2 border border-[var(--button-border-color)] rounded-lg text-[var(--text-color)] hover:bg-[var(--button-hover-color)] transition-all">
+                    {t("page404.backToPreview")}
+                </a>
+            </div>
+        </div>
+
+        <!-- <p class="mt-4 text-sm text-[var(--text-color-70)]">{t("page404.errorCode")}</p> -->
+    </div>
+</MainPageLayout>
