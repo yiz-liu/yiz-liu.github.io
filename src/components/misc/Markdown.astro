@@ -61,6 +61,100 @@ const className = Astro.props.class
     width: 100%;
   }
 
+  .diagram-block-trigger {
+    cursor: zoom-in;
+  }
+
+  .diagram-block-trigger:focus-visible {
+    outline: 2px solid var(--link-color);
+    outline-offset: 4px;
+  }
+
+  #diagram-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  #diagram-modal.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #diagram-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(4px);
+  }
+
+  .diagram-modal-panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: min(96vw, 1200px);
+    max-height: min(92vh, 900px);
+    background: var(--bg-color);
+    border: 1px solid var(--button-border-color);
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 32px var(--shadow-color);
+    overflow: hidden;
+  }
+
+  .diagram-modal-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--button-border-color);
+  }
+
+  .diagram-modal-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid var(--button-border-color);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .diagram-modal-close:hover {
+    background: var(--button-hover-color);
+  }
+
+  .diagram-modal-body {
+    flex: 1;
+    overflow: auto;
+    padding: 1.5rem;
+  }
+
+  .diagram-modal-body > * {
+    margin: 0 auto;
+  }
+
+  .diagram-modal-body pre {
+    width: fit-content;
+    max-width: none;
+    margin: 0 auto !important;
+  }
+
+  .diagram-modal-body svg {
+    display: block;
+    max-width: none;
+  }
+
   pre {
     margin-top: 0 !important;
     overflow-x: auto;
@@ -117,15 +211,133 @@ const className = Astro.props.class
 <script>
   const copyIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
   const checkIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+  const diagramModalId = 'diagram-modal';
+
+  function getDiagramGraphic(block) {
+    return block.querySelector('svg, img');
+  }
 
   function isRenderedDiagramBlock(block) {
-    const code = block.querySelector('code');
-    const classNames = [block.className, block.parentElement?.className, code?.className]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
+    return Boolean(getDiagramGraphic(block));
+  }
 
-    return classNames.includes('mermaid') || classNames.includes('d2') || Boolean(block.querySelector('svg'));
+  function getDiagramModalElements() {
+    const modal = document.getElementById(diagramModalId);
+    if (!modal) return null;
+
+    const content = document.getElementById('diagram-modal-content');
+    const closeButton = document.getElementById('diagram-modal-close');
+    const backdrop = document.getElementById('diagram-modal-backdrop');
+
+    if (!(content instanceof HTMLDivElement) || !(closeButton instanceof HTMLButtonElement) || !(backdrop instanceof HTMLDivElement)) {
+      return null;
+    }
+
+    return { modal, content, closeButton, backdrop };
+  }
+
+  function ensureDiagramModal() {
+    const existing = getDiagramModalElements();
+    if (existing) return existing;
+
+    const modal = document.createElement('div');
+    modal.id = diagramModalId;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Expanded diagram');
+    modal.setAttribute('aria-hidden', 'true');
+
+    modal.innerHTML = `
+      <div id="diagram-modal-backdrop" aria-hidden="true"></div>
+      <div class="diagram-modal-panel" role="document">
+        <div class="diagram-modal-header">
+          <button id="diagram-modal-close" class="diagram-modal-close" type="button" aria-label="Close enlarged diagram">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <div id="diagram-modal-content" class="diagram-modal-body"></div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const elements = getDiagramModalElements();
+    if (!elements) return null;
+
+    if (modal.dataset.bound !== 'true') {
+      const closeModal = () => {
+        const current = getDiagramModalElements();
+        if (!current) return;
+
+        current.modal.classList.remove('is-open');
+        current.modal.setAttribute('aria-hidden', 'true');
+        current.content.replaceChildren();
+        document.body.style.overflow = '';
+      };
+
+      elements.closeButton.addEventListener('click', closeModal);
+      elements.backdrop.addEventListener('click', closeModal);
+      modal.addEventListener('click', (event) => {
+        const panel = modal.querySelector('.diagram-modal-panel');
+        if (panel instanceof HTMLElement && !panel.contains(event.target)) {
+          closeModal();
+        }
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+          closeModal();
+        }
+      });
+      modal.dataset.bound = 'true';
+    }
+
+    return elements;
+  }
+
+  function openDiagramModal(block) {
+    const graphic = getDiagramGraphic(block);
+    const elements = ensureDiagramModal();
+    if (!graphic || !elements) return;
+
+    const clone = block.cloneNode(true);
+    if (!(clone instanceof HTMLElement)) return;
+
+    clone.classList.remove('diagram-block-trigger');
+    clone.removeAttribute('tabindex');
+    clone.removeAttribute('role');
+    clone.removeAttribute('aria-label');
+    clone.removeAttribute('data-diagram-modal-bound');
+
+    elements.content.replaceChildren(clone);
+    elements.modal.classList.add('is-open');
+    elements.modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    elements.closeButton.focus();
+  }
+
+  function setupDiagramModalTriggers() {
+    const blocks = document.querySelectorAll('.markdown-content pre');
+
+    blocks.forEach((block) => {
+      if (!(block instanceof HTMLElement) || !isRenderedDiagramBlock(block)) return;
+      if (block.dataset.diagramModalBound === 'true') return;
+
+      block.dataset.diagramModalBound = 'true';
+      block.classList.add('diagram-block-trigger');
+      block.setAttribute('tabindex', '0');
+      block.setAttribute('role', 'button');
+      block.setAttribute('aria-label', 'Open enlarged diagram');
+
+      block.addEventListener('click', () => openDiagramModal(block));
+      block.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openDiagramModal(block);
+        }
+      });
+    });
+
+    ensureDiagramModal();
   }
 
   function createCopyButtons() {
@@ -161,6 +373,9 @@ const className = Astro.props.class
 
   createCopyButtons();
   document.addEventListener("astro:page-load", createCopyButtons);
+
+  setupDiagramModalTriggers();
+  document.addEventListener('astro:page-load', setupDiagramModalTriggers);
 </script>
 
 <script>
