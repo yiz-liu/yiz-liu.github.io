@@ -259,16 +259,6 @@ tocLinks.forEach(link => {
     };
   }
 
-  // 回到评论区
-  if (backComment) {
-    backComment.onclick = () => {
-      const comments = document.getElementById('comments');
-      comments.scrollIntoView({ behavior: 'smooth' });
-      container.classList.remove('is-active', 'toc-active');
-      isTocOpen = false;
-    };
-  }
-
   // 点击外部关闭所有展开项
   document.addEventListener('click', (e) => {
     if (!container.contains(e.target)) {
