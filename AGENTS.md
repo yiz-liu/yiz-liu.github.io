@@ -88,4 +88,13 @@ pnpm newpost <folder> [lang]
 - Deploy is GitHub Actions -> GitHub Pages on push to `main` via `.github/workflows/deploy.yml`.
 - There is no dedicated `test`, `lint`, `typecheck`, or `check` script; `pnpm build` is the main validation path.
 - `src/content/spec` looks like “specs” but is site content, not tests.
-- Child knowledge-base files exist at `src/pages/[...locale]`, `src/content/blog`, and `src/utils` for local rules.
+
+## ROUTE-BOUNDARY SPECIFICS (`src/pages/[...locale]`)
+- `getStaticPaths()` in this boundary usually maps all locales but passes `undefined` for the default-locale param.
+- Do not replace this boundary with flat per-locale route files without also updating URL helpers and fallback logic.
+- Do not treat `entry.id` as a filename here; it is the normalized folder slug.
+- `archives.astro` uses `client:only="svelte"`, so its route data shape must stay compatible with `ArchivePanel.svelte`.
+- `about.astro` throws if both `spec/about/<locale>` and the default-locale fallback are missing.
+
+## KNOWLEDGE-BASE FILES
+- Child knowledge-base files exist at `src/content/blog` and `src/utils` for local rules.
