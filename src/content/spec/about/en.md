@@ -1,2 +1,2 @@
 
-A really simple blog site, focusing on my experience and thoughts.
+A really simple blog site, focusing on my experiences and thoughts.
