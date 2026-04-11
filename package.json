@@ -22,6 +22,7 @@
     "astro-d2": "^0.10.0",
     "astro-icon": "^1.1.5",
     "astro-mermaid": "^2.0.1",
+    "mermaid": "^11.0.0",
     "hastscript": "^9.0.1",
     "katex": "^0.16.22",
     "mdast-util-to-string": "^4.0.0",
