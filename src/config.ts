@@ -8,7 +8,7 @@ export const siteConfig: SiteConfig = {
     title: "Yizhou's Notes",
     subTitle: "Notes on AI infrastructure, inference systems, and engineering trade-offs.",
 
-    favicon: "/favicon/favicon.ico", // Path of the favicon, relative to the /public directory
+    favicon: "/favicon/favicon.svg", // Path of the favicon, relative to the /public directory
 
     pageSize: 6, // Number of posts per page
     toc: {
