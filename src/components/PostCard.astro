@@ -31,7 +31,7 @@ const pageUrl = getRelativeLocaleUrl(currentLang, "/blog/" + url);
 const { remarkPluginFrontmatter } = await render(entry);
 ---
 
-<div data-aos="fade-up"  class="block min-w-0 w-full max-w-[var(--page-width)] mx-auto my-6  rounded-xl shadow border border-[var(--button-border-color)] overflow-hidden">
+<div class="block min-w-0 w-full max-w-[var(--page-width)] mx-auto my-6  rounded-xl shadow border border-[var(--button-border-color)] overflow-hidden">
     {image && (
         <a href={pageUrl} class="cover h-60 overflow-hidden hover-scale block">
             <ImageModule src={image} alt={title} class="w-full h-full object-cover"/>
