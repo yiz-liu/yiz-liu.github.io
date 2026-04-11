@@ -118,10 +118,21 @@ const className = Astro.props.class
   const copyIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
   const checkIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 
+  function isRenderedDiagramBlock(block) {
+    const code = block.querySelector('code');
+    const classNames = [block.className, block.parentElement?.className, code?.className]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return classNames.includes('mermaid') || classNames.includes('d2') || Boolean(block.querySelector('svg'));
+  }
+
   function createCopyButtons() {
-    const blocks = document.querySelectorAll("pre");
+    const blocks = document.querySelectorAll('.markdown-content pre');
 
     blocks.forEach((block) => {
+      if (isRenderedDiagramBlock(block)) return;
       if (block.parentElement.classList.contains("code-block-wrapper")) return;
 
       const wrapper = document.createElement("div");
@@ -155,76 +166,74 @@ const className = Astro.props.class
 <script>
     import PhotoSwipeLightbox from 'photoswipe/lightbox';
 
+    let lightbox;
+
+    function setPhotoSwipeDimensions(link, img) {
+      const width = img.getAttribute('width');
+      const height = img.getAttribute('height');
+
+      if (width && height) {
+        link.setAttribute('data-pswp-width', width);
+        link.setAttribute('data-pswp-height', height);
+        return;
+      }
+
+      if (img.complete && img.naturalWidth) {
+        link.setAttribute('data-pswp-width', img.naturalWidth.toString());
+        link.setAttribute('data-pswp-height', img.naturalHeight.toString());
+        return;
+      }
+
+      img.addEventListener('load', () => {
+        if (img.naturalWidth) {
+          link.setAttribute('data-pswp-width', img.naturalWidth.toString());
+          link.setAttribute('data-pswp-height', img.naturalHeight.toString());
+        }
+      }, { once: true });
+
+      link.setAttribute('data-pswp-width', '1000');
+      link.setAttribute('data-pswp-height', '750');
+    }
+
+    function enhanceMarkdownImages(container) {
+      const images = container.querySelectorAll('img');
+
+      images.forEach((img) => {
+        if (img.closest('pre')) return;
+
+        let link = img.parentElement?.tagName === 'A' ? img.parentElement : null;
+
+        if (!link) {
+          link = document.createElement('a');
+          img.parentNode.insertBefore(link, img);
+          link.appendChild(img);
+        }
+
+        link.classList.add('pswp-link');
+
+        if (!link.getAttribute('href')) {
+          link.setAttribute('href', img.currentSrc || img.src);
+        }
+
+        setPhotoSwipeDimensions(link, img);
+      });
+    }
+
     function createPhotoSwipeLightbox() {
       const container = document.querySelector('.markdown-content');
       if (container) {
-        // 查找文章区域内所有的 figure 元素
-        // console.log('Initializing PhotoSwipe Lightbox for images in .markdown-content');
-        const figures = container.querySelectorAll('figure');
+        enhanceMarkdownImages(container);
 
-        figures.forEach((figure) => {
-          const img = figure.querySelector('img');
-          if (!img) return;
-
-          // 检查 img 是否是 figure 的直接子节点
-          if (!figure.contains(img) || img.parentElement !== figure) {
-            // console.warn('Image is not a direct child of figure, skipping:', img);
-            return;
-          }
-
-          // 创建 a 标签
-          const a = document.createElement('a');
-          a.href = img.src;
-          a.className = 'pswp-link';
-          
-          // 优先使用已有属性
-          const width = img.getAttribute('width');
-          const height = img.getAttribute('height');
-          
-          if (width && height) {
-            a.setAttribute('data-pswp-width', width);
-            a.setAttribute('data-pswp-height', height);
-          } else {
-            // 外部图片：尝试从自然尺寸获取
-            // 如果图片已加载，直接使用 naturalWidth/naturalHeight
-            if (img.complete && img.naturalWidth) {
-              a.setAttribute('data-pswp-width', img.naturalWidth.toString());
-              a.setAttribute('data-pswp-height', img.naturalHeight.toString());
-            } else {
-              // 图片未加载完成，监听 load 事件
-              img.addEventListener('load', () => {
-                if (img.naturalWidth) {
-                  a.setAttribute('data-pswp-width', img.naturalWidth.toString());
-                  a.setAttribute('data-pswp-height', img.naturalHeight.toString());
-                }
-              }, { once: true });
-              
-              // 设置一个合理的默认值，避免铺满屏幕
-              // 大多数博客图片宽度在 800-1200 之间
-              a.setAttribute('data-pswp-width', '1000');
-              a.setAttribute('data-pswp-height', '750');
-            }
-          }
-          
-          figure.insertBefore(a, img);
-          a.appendChild(img);
-        });
-
-        // 初始化 Lightbox
-        const lightbox = new PhotoSwipeLightbox({
-          // 指定文章内所有包含图片的链接
+        lightbox?.destroy();
+        lightbox = new PhotoSwipeLightbox({
           gallery: '.markdown-content',
           children: 'a.pswp-link',
           pswpModule: () => import('photoswipe')
         });
         lightbox.init();
-        console.log('PhotoSwipe Lightbox initialized');
-      }else {
-        console.log('No .markdown-content found, skipping PhotoSwipe Lightbox initialization.');
       }
     }
 
+    createPhotoSwipeLightbox();
     document.addEventListener('astro:page-load', createPhotoSwipeLightbox);
-    // document.addEventListener('astro:after-swap', createPhotoSwipeLightbox);
-    
 </script>
