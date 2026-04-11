@@ -84,6 +84,15 @@ pnpm preview
 pnpm newpost <folder> [lang]
 ```
 
+For non-interactive shells in this environment, `node` / `npm` / `pnpm` may be unavailable until nvm is sourced. Use:
+
+```bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+```
+
+After that, project commands like `pnpm build` should resolve normally.
+
 ## NOTES
 - Deploy is GitHub Actions -> GitHub Pages on push to `main` via `.github/workflows/deploy.yml`.
 - There is no dedicated `test`, `lint`, `typecheck`, or `check` script; `pnpm build` is the main validation path.
