@@ -77,7 +77,6 @@ const className = Astro.props.class
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1.5rem;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease;
@@ -100,20 +99,22 @@ const className = Astro.props.class
     z-index: 1;
     display: flex;
     flex-direction: column;
-    width: min(96vw, 1200px);
-    max-height: min(92vh, 900px);
-    background: var(--bg-color);
-    border: 1px solid var(--button-border-color);
-    border-radius: 0.75rem;
-    box-shadow: 0 8px 32px var(--shadow-color);
-    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .diagram-modal-header {
     display: flex;
     justify-content: flex-end;
-    padding: 0.75rem;
-    border-bottom: 1px solid var(--button-border-color);
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 2;
+    padding: 0;
   }
 
   .diagram-modal-close {
@@ -122,37 +123,56 @@ const className = Astro.props.class
     justify-content: center;
     width: 2.5rem;
     height: 2.5rem;
-    border: 1px solid var(--button-border-color);
+    border: 0;
     border-radius: 999px;
-    background: transparent;
-    color: var(--text-color);
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, transform 0.2s ease;
   }
 
   .diagram-modal-close:hover {
-    background: var(--button-hover-color);
+    background: rgba(0, 0, 0, 0.72);
+    transform: scale(1.04);
   }
 
   .diagram-modal-body {
     flex: 1;
     overflow: auto;
-    padding: 1.5rem;
+    display: grid;
+    place-items: center;
+    padding: 4rem 2rem 2rem;
   }
 
   .diagram-modal-body > * {
-    margin: 0 auto;
+    margin: auto;
+    width: 100%;
+    min-height: 100%;
   }
 
   .diagram-modal-body pre {
-    width: fit-content;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: calc(100vh - 6rem);
     max-width: none;
     margin: 0 auto !important;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
-  .diagram-modal-body svg {
+   .diagram-modal-body svg,
+   .diagram-modal-body img {
     display: block;
+    width: min(94vw, 2200px) !important;
     max-width: none;
+    max-height: calc(100vh - 6rem) !important;
+    height: auto !important;
+    margin: auto;
+    object-fit: contain;
   }
 
   pre {
@@ -217,8 +237,22 @@ const className = Astro.props.class
     return block.querySelector('svg, img');
   }
 
+  function hasDiagramSourceMarker(block) {
+    const code = block.querySelector('code');
+    const classNames = [block.className, block.parentElement?.className, code?.className]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return classNames.includes('mermaid') || classNames.includes('d2');
+  }
+
   function isRenderedDiagramBlock(block) {
     return Boolean(getDiagramGraphic(block));
+  }
+
+  function isDiagramBlock(block) {
+    return hasDiagramSourceMarker(block) || isRenderedDiagramBlock(block);
   }
 
   function getDiagramModalElements() {
@@ -315,36 +349,64 @@ const className = Astro.props.class
     elements.closeButton.focus();
   }
 
-  function setupDiagramModalTriggers() {
+  function getDiagramBlockFromTarget(target) {
+    if (!(target instanceof Element)) return null;
+
+    const block = target.closest('.markdown-content pre');
+    if (!(block instanceof HTMLElement) || !isRenderedDiagramBlock(block)) {
+      return null;
+    }
+
+    return block;
+  }
+
+  function decorateDiagramBlocks() {
     const blocks = document.querySelectorAll('.markdown-content pre');
 
     blocks.forEach((block) => {
-      if (!(block instanceof HTMLElement) || !isRenderedDiagramBlock(block)) return;
-      if (block.dataset.diagramModalBound === 'true') return;
+      if (!(block instanceof HTMLElement) || !isDiagramBlock(block)) return;
 
-      block.dataset.diagramModalBound = 'true';
       block.classList.add('diagram-block-trigger');
       block.setAttribute('tabindex', '0');
       block.setAttribute('role', 'button');
       block.setAttribute('aria-label', 'Open enlarged diagram');
+    });
+  }
 
-      block.addEventListener('click', () => openDiagramModal(block));
-      block.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          openDiagramModal(block);
-        }
+  function setupDiagramModalTriggers() {
+    ensureDiagramModal();
+    decorateDiagramBlocks();
+
+    const containers = document.querySelectorAll('.markdown-content');
+    containers.forEach((container) => {
+      if (!(container instanceof HTMLElement) || container.dataset.diagramTriggerBound === 'true') return;
+
+      container.dataset.diagramTriggerBound = 'true';
+
+      container.addEventListener('click', (event) => {
+        const block = getDiagramBlockFromTarget(event.target);
+        if (!block) return;
+
+        openDiagramModal(block);
+      });
+
+      container.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+
+        const block = getDiagramBlockFromTarget(event.target);
+        if (!block) return;
+
+        event.preventDefault();
+        openDiagramModal(block);
       });
     });
-
-    ensureDiagramModal();
   }
 
   function createCopyButtons() {
     const blocks = document.querySelectorAll('.markdown-content pre');
 
     blocks.forEach((block) => {
-      if (isRenderedDiagramBlock(block)) return;
+      if (isDiagramBlock(block)) return;
       if (block.parentElement.classList.contains("code-block-wrapper")) return;
 
       const wrapper = document.createElement("div");
