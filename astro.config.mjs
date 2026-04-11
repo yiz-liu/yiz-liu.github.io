@@ -3,6 +3,8 @@ import { defineConfig } from 'astro/config';
 import tailwindcss from "@tailwindcss/vite";
 import icon from 'astro-icon';
 import { remarkReadingTime } from './src/plugins/remark-reading-time.mjs';
+import mermaid from 'astro-mermaid';
+import astroD2 from 'astro-d2';
 
 import svelte from "@astrojs/svelte";
 export default defineConfig({
@@ -23,7 +25,14 @@ export default defineConfig({
       "vscode-icons": ["*"],
       "material-symbols": ["*"]
     }
-  }), svelte()],
+  }), svelte(), mermaid({ 
+    theme: 'forest',
+    autoTheme: true
+  }), astroD2({
+    theme: { default: '0', dark: '200' },
+    inline: false,
+    experimental: { useD2js: true }
+  })],
   markdown: {
     shikiConfig: {
       theme: 'one-dark-pro', // code theme
