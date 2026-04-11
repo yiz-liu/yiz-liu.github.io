@@ -24,7 +24,10 @@ const isPublic = src.startsWith("/");
 
 let imageLoad;
 if (isLocal) {
-    const images = import.meta.glob<ImageMetadata>("../../**/*", {import: "default" });
+    const images = import.meta.glob<ImageMetadata>(
+        "../../**/*.{png,jpg,jpeg,webp,avif,gif,svg,ico,bmp,tif,tiff}",
+        { import: "default" }
+    );
     let imagePath = path.normalize(path.join("../../", "/", src)).replace(/\\/g, "/");
     const image = images[imagePath];
     if(!image) {
