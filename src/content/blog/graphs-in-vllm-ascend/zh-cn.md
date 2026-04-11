@@ -150,23 +150,23 @@ vllm-project/vllm](https://deepwiki.com/vllm-project/vllm) 和 [DeepWiki vllm-as
 
 有个问题我一直想找机会说清楚：`torch.compile` 和 CUDA Graph 都跟“图”沾边，但它们**完全不是一回事**。很多人来问问题的时候，问题里问的是“ACL Graph 如何如何”，但实际上问题属于编译的范畴（比如启动时出现 Dynamo 的报错），这一点大家一定要搞清楚。
 
-**`torch.compile` 是编译期的优化。** 它做的事情是：把你写的 Python 代码追踪（trace）成一张计算图（FX Graph），然后在这张图上做各种变换——算子融合、内存优化、甚至直接生成硬件原生的 kernel 代码（比如 GPU 上的 Triton kernel）。你可以理解为它把 Python 写的模型翻译成更高效的执行形式。
+**`torch.compile` 是编译期的优化。** 它做的事情是：把你写的 Python 代码追踪（trace）成一张计算图（FX Graph），然后在这张图上做各种变换：算子融合、内存优化、甚至直接生成硬件原生的 kernel 代码（比如 GPU 上的 Triton kernel）。你可以理解为它把 Python 写的模型翻译成更高效的执行形式。
 
 **CUDA Graph 是运行期的优化。** 它做的事情是：在第一次运行时，把 GPU 上所有的 kernel 启动序列“捕获”下来，之后每次推理直接“回放”这段录像，省掉了 CPU 侧反复下发 kernel 的开销。它不关心你的代码写得好不好、有没有优化过，它只管“一次性下发”。
 
 因为它们解决的是不同层面的问题，所以两者可以结合起来使用：`torch.compile` 让你的计算本身跑得更快（更少的 kernel、更少的中间张量，不同资源利用效率更高），CUDA Graph 让计算的**启动开销**趋近于零。打个比方：`torch.compile` 是把统筹规划，把原先的十道菜，合成五道菜，营养不变，CUDA Graph 则是把炒菜的动作从“备菜 - 做菜”变成“流水线自动做菜”。两者叠加，才有了我们现在看到的图模式性能。
 
-**编译的核心收益，是 fusion pass——算子融合。**
+**编译的核心收益，是 fusion pass，算子融合。**
 
 什么意思呢？假设模型中有一段逻辑是 `RMSNorm → Quantize → ...`，在 eager 模式下，每个操作都是一个独立的 kernel launch：先启动 RMSNorm 的 kernel，等它算完，把结果写回显存，再启动 Quantize 的 kernel，再从显存读取。看，多么麻烦！
 
 而 fusion pass 做的事情，就是**在 FX 图上做模式匹配**：发现“诶，这两个操作可以合并成一个”，然后直接替换成一个融合后的算子。一次 launch，一次读写，干完两件事。**当然前提是你得有这么些个对应的融合算子。**
 
-在 GPU 上，vLLM 的 `PostGradPassManager` 注册了 8 个以上的 fusion pass，覆盖了 AllReduce + RMSNorm 融合、RMSNorm + Quantize 融合、RoPE + KV Cache 融合等常见模式。这些 pass 是在 Inductor 内部通过 `post_grad_custom_post_pass` 钩子执行的——也就是说，Inductor 在把 FX 图转成 Triton kernel（lowering）之前，会先跑一遍这些 vLLM 自定义的融合规则。除此之外，Inductor 自身还有 codegen 层面的优化：它会自动生成针对具体 shape 的 Triton kernel，支持 auto-tuning 来选择最优的 kernel 参数等等。这些都是 eager 模式下享受不到的。
+在 GPU 上，vLLM 的 `PostGradPassManager` 注册了 8 个以上的 fusion pass，覆盖了 AllReduce + RMSNorm 融合、RMSNorm + Quantize 融合、RoPE + KV Cache 融合等常见模式。这些 pass 是在 Inductor 内部通过 `post_grad_custom_post_pass` 钩子执行的，也就是说，Inductor 在把 FX 图转成 Triton kernel（lowering）之前，会先跑一遍这些 vLLM 自定义的融合规则。除此之外，Inductor 自身还有 codegen 层面的优化：它会自动生成针对具体 shape 的 Triton kernel，支持 auto-tuning 来选择最优的 kernel 参数等等。这些都是 eager 模式下享受不到的。
 
-### 除此之外，还有啥用？
+### 那它有啥用？
 
-那 `torch.compile` 在 vLLM 中除了编译优化，还做了什么？诶，很多人可能知道 `PIECEWISE` 这种图模式，具体这模式是啥我们后面再讲。顾名思义，`PIECEWISE` 它得把图处理成一个个“PIECE”啊，那“切图”这部分工作就是在编译这阶段完成的——将 attention 部分的代码，统一注册成一个自定义算子，把模型按这些自定义算子切成若干子图，好让 CUDA Graph 分段捕获。如果没有编译，将各种模型结构处理成统一的中间表示，那么这个切分逻辑的维护成本，可能就会相当之高了。
+`torch.compile` 在 vLLM 中除了编译优化，还做了什么？诶，很多人可能知道 `PIECEWISE` 这种图模式，具体这模式是啥我们后面再讲。顾名思义，`PIECEWISE` 它得把图处理成一个个“PIECE”啊，那“切图”这部分工作就是在编译这阶段完成的：将 attention 部分的代码，统一注册成一个自定义算子，把模型按这些自定义算子切成若干子图，好让 CUDA Graph 分段捕获。如果没有编译，将各种模型结构处理成统一的中间表示，那么这个切分逻辑的维护成本，可能就会相当之高了。
 
 **当我们说“编译”的时候，切图只是其中一个环节，fusion pass 加上 Inductor 优化才是性能收益的大头。** 理解了这一点，也就不难理解为什么后面我们要花笔墨讲 Ascend 在没有 Inductor 的情况下是怎么做的了。
 
@@ -220,9 +220,9 @@ sequenceDiagram
 
 ### vLLM Ascend：没有 Inductor 怎么办
 
-到这里，大家可能已经发现了一个问题：上面整条链路里，Inductor 扮演着核心角色——fusion pass 要靠它的钩子来跑，codegen 要靠它来做，auto-tuning 也是它的活儿。**那如果没有 Inductor 呢？**
+到这里，大家可能已经发现了一个问题：上面整条链路里，Inductor 扮演着核心角色，fusion pass 要靠它的钩子来跑，codegen 要靠它来做，auto-tuning 也是它的活儿。**那如果没有 Inductor 呢？**
 
-这正是 vLLM Ascend 面对的现实。昇腾硬件上没有成熟的 Triton 作为 Inductor 后端（这一点我们在第一章的“编译后端的支持完善程度”中提过），这意味着 Inductor 的整条路走不通。但 fusion pass 带来的性能收益我们又不想放弃——那怎么办？
+这正是 vLLM Ascend 面对的现实。昇腾硬件上没有成熟的 Triton 作为 Inductor 后端（这一点我们在第一章的“编译后端的支持完善程度”中提过），这意味着 Inductor 的整条路走不通。但 fusion pass 带来的性能收益我们又不想放弃，那咋整呢？
 
 答案是：**绕过 Inductor，但保留 fusion pass 的能力。**
 
@@ -237,9 +237,9 @@ def compile_inner(graph, example_inputs):
 
 这个 `compile_inner` 被当作 `fw_compiler`（前向编译器）传给了 `aot_autograd`。AOT Autograd 完成 functionalization 之后，回调 `compile_inner`，在这里面跑 `GraphFusionPassManager` 的所有 pass，然后直接把修改后的 FX GraphModule 返回。
 
-**没有 Triton codegen，没有 `.so` 生成，没有 auto-tuning**——取而代之的是：fusion pass 把多个小算子替换成 Ascend 的融合自定义算子（通过 `torch_npu` dispatch 到 CANN 的优化 kernel），然后以 eager 模式执行这张优化过的图。
+**没有 Triton codegen，没有 `.so` 生成，没有 auto-tuning**，取而代之的是：fusion pass 把多个小算子替换成 Ascend 的融合自定义算子（通过 `torch_npu` dispatch 到 CANN 的优化 kernel），然后以 eager 模式执行这张优化过的图。
 
-`GraphFusionPassManager` 当前注册了一些 Ascend 专属的 fusion pass，每个 pass 都使用 PyTorch 的 `PatternMatcherPass` 在 FX 图上做子图模式匹配和替换——这与 GPU 侧的 fusion pass 在技术手段上是完全一致的，区别只在于匹配的模式和替换的目标算子不同。
+`GraphFusionPassManager` 当前注册了一些 Ascend 专属的 fusion pass，每个 pass 都使用 PyTorch 的 `PatternMatcherPass` 在 FX 图上做子图模式匹配和替换，这与 GPU 侧的 fusion pass 在技术手段上是完全一致的，区别只在于匹配的模式和替换的目标算子不同。
 
 ### 第三条路：npugraph_ex
 
@@ -329,7 +329,7 @@ vLLM 中默认的桶列表长这样：
 [1, 2, 4, 8, 16, 24, ..., 248, 256, 272, 288, ..., max]
 ```
 
-小批次间隔密（步长 8），大批次间隔稀（步长 16），`max` 默认是 `min(max_num_seqs * decode_query_len * 2, 512)`。`CudagraphDispatcher` 在初始化时会用这组数字构建一张 O(1) 的查找表——给定任意 `num_tokens`，直接查表就能得到它该用哪个桶，一次数组访问搞定，不需要二分查找。
+小批次间隔密（步长 8），大批次间隔稀（步长 16），`max` 默认是 `min(max_num_seqs * decode_query_len * 2, 512)`。`CudagraphDispatcher` 在初始化时会用这组数字构建一张 O(1) 的查找表。给定任意 `num_tokens`，直接查表就能得到它该用哪个桶，一次数组访问搞定，不需要二分查找。
 
 > NPU 上有一些细微差异：默认的 `max` 更保守（去掉 `*2`，这个是受 MC2 通信算子的影响，哎，又是一个特殊问题），SP 模式下还会过滤掉不能被 `tp_size` 整除的桶。但整体策略完全一致。
 
@@ -399,18 +399,39 @@ V2 的设计还不稳定，我们不过多描述。
 
 V2 再次调整了整图的设计：引入了单独的代码路径（[PR #32771](https://github.com/vllm-project/vllm/pull/32771)）。可能也更模块化了，不再是统一的包装器，而是有通用的 `CudaGraphManager`、主模型的 `ModelCudaGraphManager`、和 Eagle 的 `EagleCudaGraphManager`。
 
-V2 引入独立管理，似乎是把 full graph 和 piecewise graph 又独立开来了。这套设计其实和早期的 simple cuda graph[PR #20328](https://github.com/vllm-project/vllm/pull/20328) 有点像，同时也更贴近 SGLang 的设计。
+V2 引入独立管理，似乎是把 full graph 和 piecewise graph 又独立开来了。这套设计其实和早期的 simple cuda graph [PR #20328](https://github.com/vllm-project/vllm/pull/20328) 有点像，同时也更贴近 SGLang 的设计。
 
-*等待编写。*
+### 不同模式的区别和比较
 
-- 三种模式各自做什么（原理简述）
-  - PIECEWISE：按 attention 切子图，attention 跑 eager，其余走图
-  - FULL：整个 forward 一张图，包括 attention
-  - FULL_DECODE_ONLY：仅 decode 阶段走 FULL，prefill 走 eager
-- FULL_AND_PIECEWISE 模式（vLLM v1 默认）：
-  - decode 走 FULL，prefill 走 PIECEWISE
-  - 在此处带出 prefill vs decode 的图模式差异
-- 使用层面的限制与选择：哪些模型/场景能用哪种，不能用时的原因
+到这里，几种图模式的名字差不多都露过脸了，但如果只记名字，其实很容易越看越糊涂。**这些模式并不是在给用户制造选择困难，而是在回答两个简单问题：attention 这块到底要不要进图？prefill 和 decode 又要不要用同一种策略？**
+
+哦注意，我们这儿说的“attention”和“forward”，它的范围，统一指的是 `unified_attn_with_output` 这个自定义算子里的代码，不只是单纯的 attention 计算，**像 KV Cache 和 RoPE 相关的操作也在里面**。
+
+先说最基础的两个模式。
+
+- **`PIECEWISE`**：把整个 forward 按 attention 切成若干子图（切图的方式我们已经在 [前文](#那它有啥用) 讲过了），attention 自己跑 eager，其余部分走图。它的动机非常朴素：一般来说，attention 往往是最麻烦的一段，backend 差异多，shape 变化也多，先把它留在图外，换来的是更高的兼容性。代价也很直接：没有把 attention 这块 launch overhead 给解决掉，所以性能在某些场景不如整图高。
+- **`FULL`**：整个 forward 就是一张图，attention 也在里面。这个方案最“理想主义”，因为它把图模式的收益吃得最完整：路径统一，launch 开销最低，运行时调度也最干净。但也正因为它什么都想包进去，所以对 attention backend、模型路径、shape 管理的要求最苛刻，一旦某个环节不满足条件，就只能降级。
+
+然后是 `FULL_DECODE_ONLY`：这个模式加了一点策略：只在纯 decode 阶段走整图，prefill 批次或者混合批次退回 eager。为什么要这么干？因为 decode 的 batch 更规整，尤其是普通单 token decode，最适合捕获并重放整图；而 prefill 往往 `query_len` 更长，shape 更活跃，图模式的成本大，收益还没那么稳定，那不就算咯？所以这模式的思路就是：**只在成本低，收益高的纯解码批次才应用图模式。**
+
+接下来就是 vLLM V1 现在的默认模式：**`FULL_AND_PIECEWISE`**。它本质上是一个混合策略：**decode 走 `FULL`，prefill 走 `PIECEWISE`。** 这其实也点出了 prefill 和 decode 的根本差异：decode 更“规整”，适合整图；prefill 更“活”，适合保守一些，给 attention 留出 eager 的退路。站在工程实现的角度看，这个默认值是比较合理，能吃到 decode 侧最主要的图模式收益，又不想把 prefill 那一堆复杂情况全都硬塞进一张大图里，所以通常是性能与兼容性的折中最优解。如果我没记错的话，SGLang 的策略也是如此。
+
+最后，**图模式能不能用、最终会落到哪种模式，很多时候不是用户“想选什么”就能选什么，而是由兼容性检查决定的。** 最常见的约束有这么几类：
+
+1. **Attention backend 的能力边界。** 有些 backend 只能支持 decode 侧的整图，有些连 uniform batch 都不接受，更别说 full graph 了。此时你即便手工指定 `FULL`，运行时也可能被自动降级到 `FULL_AND_PIECEWISE`、`FULL_DECODE_ONLY`，甚至 `PIECEWISE`。
+2. **模型结构本身的限制。** 并不是所有模型路径都适合整图，例如 encoder-decoder、pooling 一类特殊结构，在上游 vLLM 中本来就有单独的兼容性处理。
+3. **运行时 shape 的动态性。** 图模式终究还是静态图，即使是 `FULL_AND_PIECEWISE`，如果批次过大，超出了最大桶，那一样会回退 eager 模式。
+
+另外，如果你想考虑捕获开销，那你可能也需要考虑手动设置一下模式和桶，否则服务启动时间和内存占用大小也会是一个麻烦，比如这里提到的[设备内存问题](https://docs.vllm.ai/en/latest/configuration/conserving_memory/#reduce-cuda-graphs)。
+
+所以从使用层面看，一般来说 **优先相信默认值。** 如果能正常用 `FULL_AND_PIECEWISE`，说明 attention backend 和模型路径都还算“配合”。如果有问题，再去看是退到 `FULL_DECODE_ONLY` 还是 `PIECEWISE`，背后对应的往往是某些兼容性问题。
+
+换句话说，vLLM 针对 **“性能”和“易用”做了取舍**，这些模式就是照顾各个不同的场景。理解了这一点，我们再来看看 vLLM Ascend 中还有哪些问题。
+
+### Ascend 上的约束
+
+无独有偶，GPU 上有这么些取舍，那 NPU 上也有自己的问题要考虑。
+
 - 流资源耗尽问题（兑现第一章伏笔）：
   - ACL Graph 的核心差异：每张被捕获的图都需要占用计算流和通信流，GPU 上的 CUDA Graph 不需要
   - PIECEWISE 的组合爆炸：每个桶 × (num_hidden_layers + 1) 个子图 × 通信域数 = 流消耗，2048 上限很快打满
