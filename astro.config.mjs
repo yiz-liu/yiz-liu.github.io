@@ -2,6 +2,8 @@
 import { defineConfig } from 'astro/config';
 import tailwindcss from "@tailwindcss/vite";
 import icon from 'astro-icon';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { remarkReadingTime } from './src/plugins/remark-reading-time.mjs';
 import mermaid from 'astro-mermaid';
 import astroD2 from 'astro-d2';
@@ -39,8 +41,8 @@ export default defineConfig({
       // theme: 'github-dark',
       wrap: false
     },
-    remarkPlugins: [remarkReadingTime],
-    rehypePlugins: []
+    remarkPlugins: [remarkMath, remarkReadingTime],
+    rehypePlugins: [rehypeKatex]
   },
   vite: {
     plugins: [tailwindcss()]
